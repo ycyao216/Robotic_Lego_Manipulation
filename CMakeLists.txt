@@ -13,9 +13,9 @@ add_definitions(-D_OS_UNIX)
 # /*                                Find Package                                */
 # /* -------------------------------------------------------------------------- */
 
+
 find_package(Eigen3 3.3.7 REQUIRED)
 find_package(OpenCV REQUIRED )
-find_package(realsense2 REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
@@ -24,14 +24,64 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   sensor_msgs
   message_generation
+  #socketcan_interface
+  #robotiq_3f_gripper_articulated_msgs
+  #robotiq_3f_gripper_control
+)
+catkin_python_setup()
+
+
+# /* -------------------------------------------------------------------------- */
+# /*                Declare ROS messages, services and actions                  */
+# /* -------------------------------------------------------------------------- */
+
+add_service_files(
+  FILES
+  GPTFeedbackControl.srv
+  SetPose.srv
+  GetPose.srv
+)
+
+
+generate_messages(
+  DEPENDENCIES
+  geometry_msgs
+  std_msgs
+)
+
+
+catkin_package(
+  CATKIN_DEPENDS
+  message_runtime
   # yk_api
 )
 
-catkin_python_setup()
 include_directories(
-    include
-    ${OpenCV_INCLUDE_DIRS}
-    ${catkin_INCLUDE_DIRS})
+  include
+  ${OpenCV_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS}
+)
+
+
+# find_package(Eigen3 3.3.7 REQUIRED)
+# find_package(OpenCV REQUIRED )
+# # find_package(realsense2 REQUIRED)
+# find_package(catkin REQUIRED COMPONENTS
+#   roscpp
+#   rospy
+#   std_msgs
+#   image_transport
+#   cv_bridge
+#   sensor_msgs
+#   message_generation
+#   # yk_api
+# )
+
+# catkin_python_setup()
+# include_directories(
+#     include
+#     ${OpenCV_INCLUDE_DIRS}
+#     ${catkin_INCLUDE_DIRS})
 
 # /* -------------------------------------------------------------------------- */
 # /*                               Create Library                               */
@@ -45,7 +95,7 @@ add_library(${PROJECT_NAME} SHARED ${src_files})
 
 target_link_libraries(${PROJECT_NAME}
     Eigen3::Eigen
-    realsense2
+    # realsense2
     ${OpenCV_LIBRARIES}
     ${catkin_LIBRARIES}
     jsoncpp
@@ -60,40 +110,18 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION 1)
 
-add_service_files(
-  FILES
-  SetPose.srv
-  GetPose.srv
-)
-
-generate_messages(
-  DEPENDENCIES
-  geometry_msgs
-  std_msgs
-)
-catkin_package(
-  CATKIN_DEPENDS
-  message_runtime
-  # yk_api
-)
-
-include_directories(
-  include
-  ${OpenCV_INCLUDE_DIRS}
-  ${catkin_INCLUDE_DIRS}
-)
 
 # /* -------------------------------------------------------------------------- */
 # /*                             Testing Executables                            */
 # /* -------------------------------------------------------------------------- */
 
-add_executable(${PROJECT_NAME}_realsense
-  src/ros_nodes/realsense_node.cpp
-)
-target_link_libraries(${PROJECT_NAME}_realsense
-    ${PROJECT_NAME}
-    ${catkin_LIBRARIES}
-)
+# add_executable(${PROJECT_NAME}_realsense
+#   src/ros_nodes/realsense_node.cpp
+# )
+# target_link_libraries(${PROJECT_NAME}_realsense
+#     ${PROJECT_NAME}
+#     ${catkin_LIBRARIES}
+# )
 
 add_executable(${PROJECT_NAME}_fts
   src/ros_nodes/fts_node.cpp

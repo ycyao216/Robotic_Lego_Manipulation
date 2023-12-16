@@ -2,6 +2,7 @@
 // HEADER FILES FOR SERVICE INTERFACE WITH YK ROBOT
 #include "geometry_msgs/Pose.h"
 #include "lego_manipulation/SetPose.h"
+#include "lego_manipulation/GPTFeedbackControl.h"
 
 // HEADER FILES FOR API INTERFACE WITH YK ROBOT
 // #include "yk_api/yk_interface.h"  // Uncomment this if using yaskawa robot
@@ -86,7 +87,9 @@ int main(int argc, char **argv)
 
         ros::ServiceClient client = nh.serviceClient<lego_manipulation::SetPose>("yk_set_pose");
         lego_manipulation::SetPose srv;
-       
+        ros::ServiceClient gpt_client = nh.serviceClient<lego_manipulation::GPTFeedbackControl>("gpt_feedback_control");
+        gpt_client.waitForExistence();
+
         ros::Publisher goal_pub = nh.advertise<std_msgs::Float32MultiArray>(controller_joint_goal_topic, lego_ptr->robot_dof());
         ros::Publisher controller_time_pub = nh.advertise<std_msgs::Float64>(controller_time_topic, 1);
         ros::Publisher controller_tracking_space_pub = nh.advertise<std_msgs::Int64>(controller_tracking_space_topic, 1);
@@ -197,6 +200,7 @@ int main(int argc, char **argv)
                 }
                 else if(mode == 1)
                 {
+
                     auto cur_graph_node = task_json[std::to_string(task_idx)];
                     brick_name = lego_ptr->get_brick_name_by_id(cur_graph_node["brick_id"].asInt(), cur_graph_node["brick_seq"].asInt());
                     grab_brick = 1;
@@ -206,10 +210,70 @@ int main(int argc, char **argv)
                                                    cur_graph_node["z"].asInt(),
                                                    cur_graph_node["ori"].asInt(),
                                                    cur_graph_node["press_side"].asInt(), cart_T);
+
+                    // auto cur_graph_node = task_json[std::to_string(task_idx)];
+                    // // brick_name = lego_gazebo_ptr->get_brick_name_by_id(cur_graph_node["brick_id"].asInt(), cur_graph_node["brick_seq"].asInt());
+                    // grab_brick = 1;
+                    // lego_gazebo_ptr->calc_brick_grab_pose(brick_name, assemble, grab_brick,
+                    //                                       cur_graph_node["x"].asInt(), 
+                    //                                       cur_graph_node["y"].asInt(), 
+                    //                                       cur_graph_node["z"].asInt(),
+                    //                                       cur_graph_node["ori"].asInt(),
+                    //                                       cur_graph_node["press_side"].asInt(), cart_T);
                     Eigen::Matrix4d up_T = cart_T;
                     up_T(2, 3) = up_T(2, 3) + 0.015;
-                    cur_goal =  lego_manipulation::math::IK_closed_form(cur_goal, up_T, lego_ptr->robot_DH_tool(), 
-                                                                        lego_ptr->robot_base_inv(), lego_ptr->robot_tool_inv(), 0, IK_status);
+                    //cur_goal =  lego_manipulation::math::IK_closed_form(cur_goal, up_T, lego_ptr->robot_DH_tool(), 
+                    //                                                     lego_ptr->robot_base_inv(), lego_ptr->robot_tool_inv(), 0, IK_status);
+                    while (1){
+                        cur_goal =  lego_manipulation::math::IK_closed_form(cur_goal, up_T, lego_ptr->robot_DH_tool(), 
+                                                                         lego_ptr->robot_base_inv(), lego_ptr->robot_tool_inv(), 0, IK_status);
+                        goal_msg.data.clear();
+                        for(int j=0; j<lego_ptr->robot_dof(); j++)
+                        {
+                            goal_msg.data.push_back(cur_goal(j));
+                        }
+                        goal_pub.publish(goal_msg);
+                        ros::spinOnce();
+
+                        lego_manipulation::GPTFeedbackControl srv;
+                        srv.request.x = up_T(0, 3);
+                        srv.request.y = up_T(1, 3);
+                        srv.request.z = up_T(2, 3);
+                        
+                        ROS_INFO_STREAM("Send GPT Control request !!!!!!\n\n\n");
+                        if (gpt_client.call(srv))
+                        {
+                            ROS_INFO_STREAM("Success" << (long int)srv.response.flag);
+                        }
+                        else
+                        {
+                            ROS_INFO_STREAM("Failed to call service");
+                            return 1;
+                        }
+                        if (srv.response.flag == 1){
+                            break;
+                        }
+                        else{
+                            up_T(0, 3) = up_T(0, 3) + srv.response.x_offset;
+                            up_T(1, 3) = up_T(1, 3) + srv.response.y_offset;
+                            up_T(2, 3) = up_T(2, 3) + srv.response.z_offset;
+                        }
+                        
+                    }
+
+                    // auto cur_graph_node = task_json[std::to_string(task_idx)];
+                    // brick_name = lego_ptr->get_brick_name_by_id(cur_graph_node["brick_id"].asInt(), cur_graph_node["brick_seq"].asInt());
+                    // grab_brick = 1;
+                    // lego_ptr->calc_brick_grab_pose(brick_name, assemble, grab_brick,
+                    //                                cur_graph_node["x"].asInt(), 
+                    //                                cur_graph_node["y"].asInt(), 
+                    //                                cur_graph_node["z"].asInt(),
+                    //                                cur_graph_node["ori"].asInt(),
+                    //                                cur_graph_node["press_side"].asInt(), cart_T);
+                    // Eigen::Matrix4d up_T = cart_T;
+                    // up_T(2, 3) = up_T(2, 3) + 0.015;
+                    // cur_goal =  lego_manipulation::math::IK_closed_form(cur_goal, up_T, lego_ptr->robot_DH_tool(), 
+                    //                                                     lego_ptr->robot_base_inv(), lego_ptr->robot_tool_inv(), 0, IK_status);
                     if(!assemble && lego_ptr->brick_instock(brick_name))
                     {
                         cur_goal = home_q;
