@@ -24,8 +24,8 @@ pickup_img_path = os.getcwd() + "/correct_pickup.png"
 # Getting the base64 string
 CORRECT_PICKUP_OBS = encode_image(pickup_img_path)
 
-# openai_api_key = "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"
-openai_api_key = "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"
+# openai_api_key = "YOUR OPENAI KEY"
+openai_api_key = "YOUR OPENAI KEY"
 client = OpenAI(api_key=openai_api_key)
 
 
